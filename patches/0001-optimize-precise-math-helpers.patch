@@ -1,0 +1,34 @@
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 3aa44a44..c68c0f4f 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -230,6 +230,29 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ 	MVKShaderLibraryCompiler* slc = new MVKShaderLibraryCompiler(_owner);
+ 	NSString* nsSrc = [[NSString alloc] initWithUTF8String: msl.c_str()];	// temp retained
+ 
++	// SPIRV-Cross honours SPIR-V NoContraction ("precise") by routing float add, subtract and multiply
++	// through helper functions marked [[clang::optnone]], so every such operation becomes an unoptimized,
++	// non-inlined call. In GPU-driven games most compute shaders use them, which is very slow on Metal.
++	// Outside vertex shaders, where cross-pipeline invariance does not apply, letting Metal optimize these
++	// helpers is far faster and visually equivalent. Only the precise-math helpers are changed: other
++	// optnone helpers (spvMulExtended works around a Metal compiler crash; spvQuantizeToF16 and spvReflect
++	// match Vulkan conformance results) are left alone.
++	// MVK_PERF_OPTIMIZE_PRECISE_MATH=0 disables this.
++	static const bool optimizePreciseMath = [] { const char* s = getenv("MVK_PERF_OPTIMIZE_PRECISE_MATH"); return !s || atoi(s) != 0; }();
++	if (optimizePreciseMath && [nsSrc containsString: @"[[clang::optnone]]"] && ![nsSrc containsString: @"\nvertex "]) {
++		NSMutableString* optSrc = [nsSrc mutableCopy];
++		for (NSString* helper in @[@"T spvFAdd(", @"T spvFSub(", @"T spvFMul(",
++								   @"vec<T, Cols> spvFMulVectorMatrix(", @"vec<T, Rows> spvFMulMatrixVector(",
++								   @"matrix<T, RCols, LRows> spvFMulMatrixMatrix("]) {
++			[optSrc replaceOccurrencesOfString: [@"[[clang::optnone]] " stringByAppendingString: helper]
++								   withString: helper
++									  options: 0
++										range: NSMakeRange(0, optSrc.length)];
++		}
++		[nsSrc release];
++		nsSrc = optSrc;
++	}
++
+ 	// If specialization macro is used, translate the id to macro information and pass it to compiler
+ 	vector<pair<MSLSpecializationMacroInfo, MVKShaderMacroValue>> macro_def;
+ 	if (specializationMacroDef) {

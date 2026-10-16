@@ -1,0 +1,22 @@
+enshrouded-mac-perfmod
+Copyright 2026 Nuno Cunha
+
+This project distributes a modified build of MoltenVK.
+
+MoltenVK
+Copyright (c) 2015-2026 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/KhronosGroup/MoltenVK
+
+MoltenVK includes SPIRV-Cross and other components, each under its own license
+(Apache License 2.0 for SPIRV-Cross; see the MoltenVK source tree for the full list).
+Source: https://github.com/KhronosGroup/SPIRV-Cross
+
+Modifications made by this project (see patches/):
+- MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm: before compiling a non-vertex shader,
+  remove [[clang::optnone]] from SPIRV-Cross's precise-math helper functions
+  (spvFAdd, spvFSub, spvFMul, spvFMulVectorMatrix, spvFMulMatrixVector,
+  spvFMulMatrixMatrix). Disable at runtime with MVK_PERF_OPTIMIZE_PRECISE_MATH=0.
+
+This is an unofficial build. It is not affiliated with or endorsed by Khronos,
+The Brenwill Workshop, CodeWeavers, or Keen Games.
