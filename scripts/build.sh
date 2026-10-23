@@ -18,10 +18,14 @@ SRC="$WORK/MoltenVK"
 DIST="$ROOT/dist"
 
 mkdir -p "$WORK" "$DIST"
+# Initialise in place rather than cloning: CI restores a dependency cache into
+# $SRC/External first, so $SRC may already exist without a checkout.
 if [[ ! -d "$SRC/.git" ]]; then
-  git clone --filter=blob:none "$MOLTENVK_REPO" "$SRC"
+  mkdir -p "$SRC"
+  git -C "$SRC" init --quiet
+  git -C "$SRC" remote add origin "$MOLTENVK_REPO"
 fi
-git -C "$SRC" fetch --quiet origin "$MOLTENVK_REF" || true
+git -C "$SRC" fetch --quiet --filter=blob:none origin "$MOLTENVK_REF"
 git -C "$SRC" checkout --quiet --force "$MOLTENVK_REF"
 git -C "$SRC" reset --quiet --hard
 for p in "$ROOT"/patches/*.patch; do
