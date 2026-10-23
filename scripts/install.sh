@@ -39,8 +39,29 @@ if [[ -z "$APP" ]]; then
   fi
   APP="${candidates[0]}"
 fi
-TARGET="$APP/Contents/SharedSupport/CrossOver/lib/x86_64/libMoltenVK.dylib"
-[[ -f "$TARGET" ]] || die "no MoltenVK at: $TARGET"
+# Where CrossOver keeps MoltenVK differs between versions:
+#   lib/x86_64/  CrossOver Preview 27
+#   lib64/       CrossOver 26.3 (reported in issue #1)
+# Fall back to searching the bundle, accepting only a library with an x86_64 slice
+# (the architecture Wine loads under Rosetta).
+CXDIR="$APP/Contents/SharedSupport/CrossOver"
+TARGET=""
+for t in "$CXDIR/lib/x86_64/libMoltenVK.dylib" "$CXDIR/lib64/libMoltenVK.dylib"; do
+  [[ -f "$t" ]] && { TARGET="$t"; break; }
+done
+if [[ -z "$TARGET" ]]; then
+  found=()
+  while IFS= read -r f; do
+    lipo -info "$f" 2>/dev/null | grep -q x86_64 && found+=("$f")
+  done < <(find "$CXDIR" -name libMoltenVK.dylib -type f 2>/dev/null)
+  (( ${#found[@]} )) || die "no libMoltenVK.dylib found inside $CXDIR"
+  if (( ${#found[@]} > 1 )); then
+    echo "Several MoltenVK copies found:"; printf '  %s\n' "${found[@]}"
+    die "please report this at https://github.com/djnunocunhadev/enshrouded-mac-perfmod/issues"
+  fi
+  TARGET="${found[0]}"
+fi
+echo "MoltenVK in this CrossOver: $TARGET"
 
 VERSION="$(defaults read "$APP/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo unknown)"
 APPNAME="$(basename "$APP" .app | tr ' ' '-')"
